@@ -25,6 +25,7 @@ function results = read_rxs_log(filename, maxCSINumber)
     results = cell(resultBatchSize, 1);
     count = 1;
 
+    isCSIDimensionsSet = 0;
     while ~feof(fp) && count <= maxCSINumber
         segmentLength = fread(fp, 1, 'uint32') + 4;
         if isempty(segmentLength)
@@ -39,10 +40,25 @@ function results = read_rxs_log(filename, maxCSINumber)
         if isempty(csi_entry) % in very rare case, the data is corrupted.
             continue;
         end
+
+        if isCSIDimensionsSet ~= 1 % set the csi dimensions if not set
+            numTones = csi_entry.CSI.NumTones;
+            numRx = csi_entry.CSI.NumRx;
+            numSts = csi_entry.RxSBasic.NumSTS;
+            isCSIDimensionsSet = 1;
+        end
+
+        % check that csi matrix dimensions matches that of the first frame
+        % to always enable bundled parsing
+        % skip this frame if not matching
+        if ~isequal(size(csi_entry.CSI.CSI), [numTones, numSts, numRx])
+            continue;
+        end
         
         if count == numel(results)
             results = [results; cell(resultBatchSize, 1)];
         end
+
         results{count} = csi_entry;
         count = count + 1;
     end
